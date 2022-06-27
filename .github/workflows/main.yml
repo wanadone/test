@@ -1,18 +1,44 @@
-name: Fly Deploy
+name: build
 on: 
   push:
   schedule:
-    - cron: '0 4 1 * *'
-env:
-  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  APP_NAME: ${{ secrets.APP_NAME }}
+    - cron: '0 13 * * 1'
 jobs:
-  deploy:
-    name: Deploy app
+  clear:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Deploy
-        run: |
-          sh ./deploy.sh
+      - uses: actions/checkout@v3
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git rm -r -f whoogle-search-main
+          git pull
+          git add .
+          git commit -m "$(date "+%Y%m%d-%H%M")"
+          git push
+  build:
+    runs-on: ubuntu-latest
+    needs: clear
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git pull
+          curl -L -H "Cache-Control: no-cache" -o main.zip https://github.com/benbusby/whoogle-search/archive/refs/heads/main.zip
+          unzip main.zip 
+          rm -rf main.zip
+          git add .
+          git commit -m "$(date "+%Y%m%d-%H%M")"
+          git push 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: akhileshns/heroku-deploy@v3.12.12 # This is the action
+        with:
+          heroku_api_key: ${{secrets.HEROKU_API_KEY}}
+          heroku_app_name: ${{secrets.APP_NAME}} #Must be unique in Heroku
+          heroku_email: ${{secrets.EMAIL}}
+          appdir: whoogle-search-main # <- This will point to the api folder in your project
